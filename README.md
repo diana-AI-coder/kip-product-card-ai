@@ -40,6 +40,8 @@ python --version
 ```
 
 Если команда `python` не найдена: в Windows попробуйте `py -3`, в Linux/macOS — `python3`.
+Либо пропустите установку Python и запустите проект в Docker — раздел
+«6. Docker (запуск одной командой)».
 
 ### Windows PowerShell
 
@@ -238,6 +240,49 @@ python -m scripts.generate_examples
 
 Команда прогоняет оба товара из `data/` и пишет результаты в `examples/`
 (`*.json` и `*.md`). В репозитории уже лежат сгенерированные примеры.
+
+### 6. Docker (запуск одной командой)
+
+Нужен только Docker с Compose v2 — Python и зависимости устанавливать не надо.
+
+```bash
+docker compose up --build
+```
+
+Откройте <http://127.0.0.1:8000> — это та же веб-форма и API. Остановить:
+`Ctrl+C`, удалить контейнер: `docker compose down`.
+
+Параметры LLM Compose читает из `.env` в корне проекта (если файла нет —
+подставляются значения по умолчанию из `docker-compose.yml`). Перед первым
+запуском:
+
+```bash
+cp .env.example .env
+# отредактируйте LLM_API_KEY и LLM_MODEL
+```
+
+Windows PowerShell: `Copy-Item .env.example .env`.
+
+Если `.env` не заполнен, страница и `/docs` открываются, а генерация
+возвращает понятную ошибку `503` — контейнер при этом не падает.
+
+Локальная модель на хосте (LM Studio, Ollama) доступна из контейнера по
+адресу `http://host.docker.internal:<порт>/v1`. Пример для LM Studio:
+
+```env
+LLM_BASE_URL=http://host.docker.internal:1234/v1
+LLM_API_KEY=lm-studio
+LLM_MODEL=google/gemma-4-e4b
+```
+
+Порт на хосте можно изменить:
+
+```bash
+HOST_PORT=8080 docker compose up --build          # Linux/macOS
+$env:HOST_PORT=8080; docker compose up --build    # Windows PowerShell
+```
+
+Состояние проверки контейнера — `docker compose ps` (healthcheck `healthy`).
 
 ---
 
@@ -439,6 +484,9 @@ python -m ruff check app tests scripts
 ├── requirements.txt
 ├── requirements-dev.txt # + ruff
 ├── pyproject.toml      # настройки ruff
+├── Dockerfile          # образ с FastAPI и зависимостями
+├── docker-compose.yml  # запуск одной командой
+├── .dockerignore
 ├── .env.example
 └── README.md
 ```
@@ -460,6 +508,9 @@ python -m ruff check app tests scripts
 | `connection refused` для локальной модели | Не запущен Ollama/LM Studio или другой сервер на `LLM_BASE_URL` |
 | Ответ стабильно вне лимитов | Увеличьте `LLM_MAX_REPAIRS` или возьмите более сильную модель |
 | `ModuleNotFoundError: multipart` | `pip install -r requirements.txt` (там есть `python-multipart`) |
+| `docker: command not found` | Установите Docker Desktop (Windows/macOS) или Docker Engine + Compose v2 (Linux) |
+| Контейнер не видит локальную LLM | Внутри контейнера `127.0.0.1` — это сам контейнер: укажите `http://host.docker.internal:<порт>/v1` |
+| `port is already allocated` | Порт 8000 занят: `HOST_PORT=8080 docker compose up --build` |
 
 ---
 
@@ -467,10 +518,10 @@ python -m ruff check app tests scripts
 
 | Ограничение из ТЗ | Что сделано |
 |---|---|
-| Не требуется CMS, админ-панель, БД или деплой | Ничего из этого не реализовано намеренно: нет БД, ORM, миграций, авторизации, Docker и CI. Результат — файл или HTTP-ответ, состояние между запросами не хранится |
+| Не требуется CMS, админ-панель, БД или деплой | Ничего из этого не реализовано намеренно: нет БД, ORM, миграций и авторизации. Результат — файл или HTTP-ответ, состояние между запросами не хранится. Добавлена только упаковка в Docker для воспроизводимого запуска одной командой; CI нет |
 | Не требуется конкретная LLM или векторная база | Провайдер и модель задаются только через `LLM_BASE_URL` / `LLM_MODEL`; по умолчанию подставляется OpenAI-совместимый адрес, но он переопределяется. Векторного хранилища и RAG нет — один вызов LLM на карточку |
 | Достаточно локального прототипа по инструкции | `README` → «Быстрый старт» и «Полностью локальный запуск»; проверено на локальной модели LM Studio, примеры сгенерированы без облака |
-| Достаточно MVP, остальное — в улучшениях | В README есть раздел «Возможные улучшения»: LLM-as-judge, нормализация единиц, кэш, пакетная обработка, Wordstat, evals, async, Docker |
+| Достаточно MVP, остальное — в улучшениях | В README есть раздел «Возможные улучшения»: LLM-as-judge, нормализация единиц, кэш, пакетная обработка, Wordstat, evals, async, CI |
 | Не выдумывать характеристики, явно указывать нехватку | Промпт + проверки чисел/единиц/`source_key` + repair + `warnings`; подробности — в разделах «Промпты» и «Защита от выдуманных характеристик» |
 
 ---
@@ -501,7 +552,7 @@ python -m ruff check app tests scripts
 - Частотность запросов через Wordstat/Keys.so.
 - Few-shot примеры под разные категории КИП и offline-эвалюация на наборе карточек.
 - Асинхронные задания и очередь для длинных генераций.
-- Docker и минимальная авторизация для внутреннего использования.
+- CI (линтер + тесты) и минимальная авторизация для внутреннего использования.
 
 ---
 
